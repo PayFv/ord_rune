@@ -37,6 +37,18 @@ pub(super) struct RuneUpdater<'a, 'tx, 'client> {
   pub(super) statistic_to_count: &'a mut Table<'tx, u64, u64>,
   pub(super) block_time: u32,
   pub(super) transaction_id_to_rune: &'a mut Table<'tx, &'static TxidValue, u128>,
+  pub(super) action_log_count: u64,
+  pub(super) sequence_to_rune_action_log: &'a mut Table<
+    'tx,
+    u64,
+    (
+      u64,
+      u64,
+      &'static TxidValue,
+      &'static OutPointValue,
+      &'static [u8],
+    ),
+  >,
   pub(super) updates: HashMap<RuneId, RuneUpdate>,
 }
 
@@ -220,6 +232,24 @@ impl<'a, 'tx, 'client> RuneUpdater<'a, 'tx, 'client> {
         .store(),
         buffer.as_slice(),
       )?;
+
+      let output = OutPoint {
+        txid,
+        vout: vout.try_into().unwrap(),
+      };
+      // add unspend action log
+      self.sequence_to_rune_action_log.insert(
+        self.action_log_count,
+        (
+          self.action_log_count,
+          ActionType::Mint.into(),
+          &txid.store(),
+          &output.store(),
+          buffer.as_slice(),
+        ),
+      )?;
+
+      self.action_log_count += 1;
     }
 
     // increment entries with burned runes
@@ -227,6 +257,9 @@ impl<'a, 'tx, 'client> RuneUpdater<'a, 'tx, 'client> {
       self.updates.entry(id).or_default().burned += amount;
     }
 
+    self
+      .statistic_to_count
+      .insert(&Statistic::RuneActionLog.into(), self.runes)?;
     Ok(())
   }
 
@@ -419,6 +452,20 @@ impl<'a, 'tx, 'client> RuneUpdater<'a, 'tx, 'client> {
           i += len;
           *unallocated.entry(id).or_default() += balance;
         }
+
+        // add spent action log
+        self.sequence_to_rune_action_log.insert(
+          self.action_log_count,
+          (
+            self.action_log_count,
+            ActionType::Burn.into(),
+            &tx.txid().store(),
+            &input.previous_output.store(),
+            buffer,
+          ),
+        )?;
+
+        self.action_log_count += 1;
       }
     }
 
