@@ -27,6 +27,16 @@ impl Entry for Header {
     buffer
   }
 }
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+pub struct RuneLogEntry {
+  pub index: u64,
+  pub action_type: u64,
+  pub txid: Txid,
+  pub outpoint: OutPoint,
+  pub script_pubkey: String,
+  pub address: String,
+  pub balances: Vec<(RuneId, u128)>,
+}
 
 #[derive(Debug, PartialEq, Copy, Clone, Serialize, Deserialize)]
 pub struct RuneEntry {

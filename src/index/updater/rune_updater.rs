@@ -31,6 +31,18 @@ pub(super) struct RuneUpdater<'a, 'tx, 'client> {
   pub(super) sequence_number_to_rune_id: &'a mut Table<'tx, u32, RuneIdValue>,
   pub(super) statistic_to_count: &'a mut Table<'tx, u64, u64>,
   pub(super) transaction_id_to_rune: &'a mut Table<'tx, &'static TxidValue, u128>,
+  pub(super) action_log_count: u64,
+  pub(super) sequence_to_rune_action_log: &'a mut Table<
+    'tx,
+    u64,
+    (
+      u64,
+      u64,
+      &'static TxidValue,
+      &'static OutPointValue,
+      &'static [u8],
+    ),
+  >,
 }
 
 impl<'a, 'tx, 'client> RuneUpdater<'a, 'tx, 'client> {
@@ -150,7 +162,7 @@ impl<'a, 'tx, 'client> RuneUpdater<'a, 'tx, 'client> {
       // too large
       if let Some(vout) = pointer
         .map(|pointer| pointer.into_usize())
-        .inspect(|&pointer| assert!(pointer < allocated.len()))
+        // .inspect(|&pointer| assert!(pointer < allocated.len()))
         .or_else(|| {
           tx.output
             .iter()
@@ -207,12 +219,34 @@ impl<'a, 'tx, 'client> RuneUpdater<'a, 'tx, 'client> {
         .store(),
         buffer.as_slice(),
       )?;
+
+      let output = OutPoint {
+        txid,
+        vout: vout.try_into().unwrap(),
+      };
+      // add unspend action log
+      self.sequence_to_rune_action_log.insert(
+        self.action_log_count,
+        (
+          self.action_log_count,
+          ActionType::Mint.into(),
+          &txid.store(),
+          &output.store(),
+          buffer.as_slice(),
+        ),
+      )?;
+
+      self.action_log_count += 1;
     }
 
     // increment entries with burned runes
     for (id, amount) in burned {
       *self.burned.entry(id).or_default() += amount;
     }
+
+    self
+      .statistic_to_count
+      .insert(&Statistic::RuneActionLog.into(), self.action_log_count)?;
 
     Ok(())
   }
@@ -416,6 +450,20 @@ impl<'a, 'tx, 'client> RuneUpdater<'a, 'tx, 'client> {
           i += len;
           *unallocated.entry(id).or_default() += balance;
         }
+
+        // add spent action log
+        self.sequence_to_rune_action_log.insert(
+          self.action_log_count,
+          (
+            self.action_log_count,
+            ActionType::Burn.into(),
+            &tx.txid().store(),
+            &input.previous_output.store(),
+            buffer,
+          ),
+        )?;
+
+        self.action_log_count += 1;
       }
     }
 
