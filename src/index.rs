@@ -1131,12 +1131,17 @@ impl Index {
         .get(outpoint.vout as usize)
         .and_then(|v| Some(v.script_pubkey.clone()))
         .unwrap();
-      let address = self
+      let address_o = self
         .settings
         .chain()
-        .address_from_script(&script_pubkey)?
-        .to_string();
+        .address_from_script(&script_pubkey);
 
+      let address = if let Ok(address) = address_o {
+        address.to_string()
+      } else {
+        "unbound".to_string()
+      };
+      
       logs.push(RuneLogEntry {
         index: v.0,
         action_type: v.1,
