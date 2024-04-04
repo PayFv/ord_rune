@@ -1139,7 +1139,7 @@ impl Index {
       let address = if let Ok(address) = address_o {
         address.to_string()
       } else {
-        "unbound".to_string()
+        "UNKNOWN".to_string()
       };
       
       logs.push(RuneLogEntry {
