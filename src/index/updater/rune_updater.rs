@@ -22,6 +22,7 @@ pub(super) struct RuneUpdater<'a, 'tx, 'client> {
     (
       u64,
       u64,
+      u32,
       &'static TxidValue,
       &'static OutPointValue,
       &'static [u8],
@@ -235,6 +236,7 @@ impl<'a, 'tx, 'client> RuneUpdater<'a, 'tx, 'client> {
         (
           self.action_log_count,
           ActionType::Mint.into(),
+          self.height,
           &txid.store(),
           &output.store(),
           buffer.as_slice(),
@@ -524,6 +526,7 @@ impl<'a, 'tx, 'client> RuneUpdater<'a, 'tx, 'client> {
           (
             self.action_log_count,
             ActionType::Burn.into(),
+            self.height,
             &tx.txid().store(),
             &input.previous_output.store(),
             buffer,

@@ -75,7 +75,7 @@ define_table! { TRANSACTION_ID_TO_RUNE, &TxidValue, u128 }
 define_table! { TRANSACTION_ID_TO_TRANSACTION, &TxidValue, &[u8] }
 define_table! { WRITE_TRANSACTION_STARTING_BLOCK_COUNT_TO_TIMESTAMP, u32, u128 }
 // rune log
-define_table! { SEQUENCE_TO_RUNE_ACTION_LOG, u64, (u64, u64, &TxidValue, &OutPointValue, &[u8])}
+define_table! { SEQUENCE_TO_RUNE_ACTION_LOG, u64, (u64, u64, u32, &TxidValue, &OutPointValue, &[u8])}
 
 #[derive(Copy, Clone)]
 pub(crate) enum ActionType {
@@ -1154,8 +1154,8 @@ impl Index {
 
       let v = result.value();
 
-      let txid = Txid::load(*v.2);
-      let outpoint = OutPoint::load(*v.3);
+      let txid = Txid::load(*v.3);
+      let outpoint = OutPoint::load(*v.4);
       let balances_buffer = v.4;
       let mut balances = Vec::new();
       let mut i = 0;
@@ -1183,6 +1183,7 @@ impl Index {
       logs.push(RuneLogEntry {
         index: v.0,
         action_type: v.1,
+        height: v.2,
         txid,
         outpoint,
         script_pubkey: script_pubkey.to_hex_string(),

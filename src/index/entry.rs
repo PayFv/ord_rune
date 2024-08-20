@@ -44,6 +44,7 @@ impl Entry for Rune {
 pub struct RuneLogEntry {
   pub index: u64,
   pub action_type: u64,
+  pub height: u32,
   pub txid: Txid,
   pub outpoint: OutPoint,
   pub script_pubkey: String,
