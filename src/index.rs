@@ -1156,7 +1156,7 @@ impl Index {
 
       let txid = Txid::load(*v.3);
       let outpoint = OutPoint::load(*v.4);
-      let balances_buffer = v.4;
+      let balances_buffer = v.5;
       let mut balances = Vec::new();
       let mut i = 0;
       while i < balances_buffer.len() {
