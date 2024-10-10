@@ -2,7 +2,7 @@ use {
   self::{
     entry::{
       Entry, HeaderValue, InscriptionEntry, InscriptionEntryValue, InscriptionIdValue,
-      OutPointValue, RuneEntryValue, RuneIdValue, SatPointValue, SatRange, TxidValue,
+      OutPointValue, RuneEntryValue, RuneIdValue, RuneLogEntry, SatPointValue, SatRange, TxidValue,
     },
     event::Event,
     lot::Lot,
@@ -72,6 +72,21 @@ define_table! { STATISTIC_TO_COUNT, u64, u64 }
 define_table! { TRANSACTION_ID_TO_RUNE, &TxidValue, u128 }
 define_table! { TRANSACTION_ID_TO_TRANSACTION, &TxidValue, &[u8] }
 define_table! { WRITE_TRANSACTION_STARTING_BLOCK_COUNT_TO_TIMESTAMP, u32, u128 }
+// rune log
+define_table! { SEQUENCE_TO_RUNE_ACTION_LOG, u64, (u64, u64, u32, &TxidValue, &OutPointValue, &[u8])}
+#[derive(Copy, Clone)]
+pub(crate) enum ActionType {
+  // Deploy = 1,
+  Mint = 2,
+  Burn = 3,
+  // None = 0,
+  // Transfer = 4,
+}
+impl From<ActionType> for u64 {
+  fn from(action_type: ActionType) -> Self {
+    action_type as u64
+  }
+}
 
 #[derive(Copy, Clone)]
 pub(crate) enum Statistic {
@@ -91,6 +106,7 @@ pub(crate) enum Statistic {
   Runes = 13,
   SatRanges = 14,
   UnboundInscriptions = 16,
+  RuneActionLog = 90,
 }
 
 impl Statistic {
@@ -1130,6 +1146,69 @@ impl Index {
     }
 
     Ok(result)
+  }
+
+  pub(crate) fn rune_logs_count(&self) -> Result<u64> {
+    Ok(
+      self
+        .database
+        .begin_read()?
+        .open_table(STATISTIC_TO_COUNT)?
+        .get(&Statistic::RuneActionLog.into())?
+        .unwrap()
+        .value(),
+    )
+  }
+  pub(crate) fn rune_logs(&self, start: u64, end: u64) -> Result<Vec<RuneLogEntry>> {
+    // -> Result<Vec<(u64, u64, OutPoint, String, String, Vec<(RuneId, u128)>)>> {
+    let rtx = self.database.begin_read()?;
+    let rune_action_log = rtx.open_table(SEQUENCE_TO_RUNE_ACTION_LOG)?;
+    let last = rtx
+      .open_table(STATISTIC_TO_COUNT)?
+      .get(&Statistic::RuneActionLog.into())?
+      .unwrap()
+      .value();
+    // let end_point = end.min(last);
+    let end_point = end.min(last);
+    let start_point = start;
+    let mut logs = Vec::new();
+    for entry in rune_action_log.range(start_point..end_point)? {
+      let (_, result) = entry?;
+      let v = result.value();
+      let txid = Txid::load(*v.3);
+      let outpoint = OutPoint::load(*v.4);
+      let balances_buffer = v.5;
+      let mut balances = Vec::new();
+      let mut i = 0;
+      while i < balances_buffer.len() {
+        let ((id, balance), length) = Index::decode_rune_balance(&balances_buffer[i..]).unwrap();
+        i += length;
+        balances.push((id, balance));
+      }
+      let tx: Transaction = self.get_transaction(outpoint.txid)?.unwrap();
+      let script_pubkey: ScriptBuf = tx
+        .output
+        .get(outpoint.vout as usize)
+        .and_then(|v| Some(v.script_pubkey.clone()))
+        .unwrap();
+      let address_o = self.settings.chain().address_from_script(&script_pubkey);
+      let address = if let Ok(address) = address_o {
+        address.to_string()
+      } else {
+        "UNKNOWN".to_string()
+      };
+      logs.push(RuneLogEntry {
+        index: v.0,
+        action_type: v.1,
+        height: v.2,
+        txid,
+        outpoint,
+        script_pubkey: script_pubkey.to_hex_string(),
+        address,
+        balances,
+      });
+    }
+    Ok(logs)
   }
 
   pub fn block_header(&self, hash: BlockHash) -> Result<Option<Header>> {

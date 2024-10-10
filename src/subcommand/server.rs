@@ -256,6 +256,8 @@ impl Server {
         .route("/runes", get(Self::runes))
         .route("/runes/:page", get(Self::runes_paginated))
         .route("/runes/balances", get(Self::runes_balances))
+        .route("/runes/logs/:start/:end", get(Self::rune_logs))
+        .route("/runes/logs/count", get(Self::rune_logs_count))
         .route("/sat/:sat", get(Self::sat))
         .route("/satpoint/:satpoint", get(Self::satpoint))
         .route("/search", get(Self::search_by_query))
@@ -792,6 +794,19 @@ impl Server {
       } else {
         StatusCode::NOT_FOUND.into_response()
       })
+    })
+  }
+
+  async fn rune_logs_count(Extension(index): Extension<Arc<Index>>) -> ServerResult<Json<u64>> {
+    task::block_in_place(|| Ok(Json(index.rune_logs_count()?)))
+  }
+  async fn rune_logs(
+    Extension(index): Extension<Arc<Index>>,
+    Path((start, end)): Path<(u64, u64)>,
+  ) -> ServerResult<Response> {
+    task::block_in_place(|| {
+      let logs = index.rune_logs(start, end)?;
+      Ok(Json(logs).into_response())
     })
   }
 

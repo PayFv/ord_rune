@@ -352,9 +352,15 @@ impl<'index> Updater<'index> {
       let mut rune_to_rune_id = wtx.open_table(RUNE_TO_RUNE_ID)?;
       let mut sequence_number_to_rune_id = wtx.open_table(SEQUENCE_NUMBER_TO_RUNE_ID)?;
       let mut transaction_id_to_rune = wtx.open_table(TRANSACTION_ID_TO_RUNE)?;
+      let mut sequence_to_rune_action_log = wtx.open_table(SEQUENCE_TO_RUNE_ACTION_LOG)?;
 
       let runes = statistic_to_count
         .get(&Statistic::Runes.into())?
+        .map(|x| x.value())
+        .unwrap_or(0);
+
+      let action_log_count = statistic_to_count
+        .get(&Statistic::RuneActionLog.into())?
         .map(|x| x.value())
         .unwrap_or(0);
 
@@ -376,6 +382,8 @@ impl<'index> Updater<'index> {
         sequence_number_to_rune_id: &mut sequence_number_to_rune_id,
         statistic_to_count: &mut statistic_to_count,
         transaction_id_to_rune: &mut transaction_id_to_rune,
+        action_log_count,
+        sequence_to_rune_action_log: &mut sequence_to_rune_action_log,
       };
 
       for (i, (tx, txid)) in block.txdata.iter().enumerate() {
