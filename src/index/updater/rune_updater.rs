@@ -258,11 +258,12 @@ impl<'a, 'tx, 'client> RuneUpdater<'a, 'tx, 'client> {
         })?;
       }
 
-      self
-        .statistic_to_count
-        .insert(&Statistic::RuneActionLog.into(), self.action_log_count)?;
     }
 
+    self
+    .statistic_to_count
+    .insert(&Statistic::RuneActionLog.into(), self.action_log_count)?;
+  
     Ok(())
   }
 
